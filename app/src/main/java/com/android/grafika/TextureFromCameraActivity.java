@@ -39,6 +39,7 @@ import com.android.grafika.gles.GlUtil;
 import com.android.grafika.gles.Sprite2d;
 import com.android.grafika.gles.Texture2dProgram;
 import com.android.grafika.gles.WindowSurface;
+import com.google.grafika.R;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;

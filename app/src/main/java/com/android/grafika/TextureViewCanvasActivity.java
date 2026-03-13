@@ -27,6 +27,8 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 
+import com.google.grafika.R;
+
 /**
  * A demonstration of using Canvas to draw on a TextureView.  Based on TextureViewGLActivity.
  * <p>

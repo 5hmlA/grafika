@@ -25,6 +25,7 @@ import android.view.TextureView;
 
 import java.io.File;
 import java.io.IOException;
+import com.google.grafika.R;
 
 /**
  * Decodes two video streams simultaneously to two TextureViews.

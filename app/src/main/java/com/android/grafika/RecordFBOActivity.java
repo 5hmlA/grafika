@@ -16,6 +16,7 @@
 
 package com.android.grafika;
 
+import android.annotation.SuppressLint;
 import android.opengl.GLES20;
 import android.opengl.GLES30;
 import android.opengl.Matrix;
@@ -43,6 +44,7 @@ import com.android.grafika.gles.GlUtil;
 import com.android.grafika.gles.Sprite2d;
 import com.android.grafika.gles.Texture2dProgram;
 import com.android.grafika.gles.WindowSurface;
+import com.google.grafika.R;
 
 import java.io.File;
 import java.io.IOException;
@@ -274,6 +276,7 @@ public class RecordFBOActivity extends Activity implements SurfaceHolder.Callbac
     /**
      * onClick handler for radio buttons.
      */
+    @SuppressLint("NonConstantResourceId")
     public void onRadioButtonClicked(View view) {
         RadioButton rb = (RadioButton) view;
         if (!rb.isChecked()) {
@@ -281,18 +284,15 @@ public class RecordFBOActivity extends Activity implements SurfaceHolder.Callbac
             return;
         }
 
-        switch (rb.getId()) {
-            case R.id.recDrawTwice_radio:
-                mSelectedRecordMethod = RECMETHOD_DRAW_TWICE;
-                break;
-            case R.id.recFbo_radio:
-                mSelectedRecordMethod = RECMETHOD_FBO;
-                break;
-            case R.id.recFramebuffer_radio:
-                mSelectedRecordMethod = RECMETHOD_BLIT_FRAMEBUFFER;
-                break;
-            default:
-                throw new RuntimeException("Click from unknown id " + rb.getId());
+        int id = rb.getId();
+        if (id == R.id.recDrawTwice_radio) {
+            mSelectedRecordMethod = RECMETHOD_DRAW_TWICE;
+        } else if (id == R.id.recFbo_radio) {
+            mSelectedRecordMethod = RECMETHOD_FBO;
+        } else if (id == R.id.recFramebuffer_radio) {
+            mSelectedRecordMethod = RECMETHOD_BLIT_FRAMEBUFFER;
+        } else {
+            throw new RuntimeException("Click from unknown id " + rb.getId());
         }
 
         Log.d(TAG, "Selected rec mode " + mSelectedRecordMethod);

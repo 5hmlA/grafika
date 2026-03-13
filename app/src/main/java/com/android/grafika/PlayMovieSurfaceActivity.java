@@ -35,6 +35,7 @@ import com.android.grafika.gles.WindowSurface;
 
 import java.io.File;
 import java.io.IOException;
+import com.google.grafika.R;
 
 /**
  * Play a movie from a file on disk.  Output goes to a SurfaceView.

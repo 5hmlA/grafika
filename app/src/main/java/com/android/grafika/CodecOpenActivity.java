@@ -25,6 +25,7 @@ import android.view.View;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import com.google.grafika.R;
 
 /**
  * Opens a large number of MediaCodec encoders, just to see what happens.

@@ -28,6 +28,8 @@ import android.view.Surface;
 import android.widget.TextView;
 import android.app.Activity;
 
+import com.google.grafika.R;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;

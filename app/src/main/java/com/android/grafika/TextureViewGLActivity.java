@@ -28,6 +28,7 @@ import android.graphics.SurfaceTexture;
 
 import com.android.grafika.gles.EglCore;
 import com.android.grafika.gles.WindowSurface;
+import com.google.grafika.R;
 
 /**
  * Simple demonstration of using GLES to draw on a TextureView.

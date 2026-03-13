@@ -24,6 +24,8 @@ import android.app.Activity;
 import android.util.Log;
 import android.view.Choreographer;
 
+import com.google.grafika.R;
+
 /**
  * Trivial activity used to test Choreographer behavior.
  */

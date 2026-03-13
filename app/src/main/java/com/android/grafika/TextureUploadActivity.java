@@ -37,6 +37,7 @@ import com.android.grafika.gles.GlUtil;
 import com.android.grafika.gles.OffscreenSurface;
 import com.android.grafika.gles.Sprite2d;
 import com.android.grafika.gles.Texture2dProgram;
+import com.google.grafika.R;
 
 import java.io.BufferedOutputStream;
 import java.io.File;

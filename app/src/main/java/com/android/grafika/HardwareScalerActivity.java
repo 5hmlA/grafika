@@ -44,6 +44,7 @@ import com.android.grafika.gles.Texture2dProgram;
 import com.android.grafika.gles.WindowSurface;
 
 import java.lang.ref.WeakReference;
+import com.google.grafika.R;
 
 
 /**
@@ -236,21 +237,17 @@ public class HardwareScalerActivity extends Activity implements SurfaceHolder.Ca
             return;
         }
 
-        switch (rb.getId()) {
-            case R.id.surfaceSizeTiny_radio:
-                newSize = SURFACE_SIZE_TINY;
-                break;
-            case R.id.surfaceSizeSmall_radio:
-                newSize = SURFACE_SIZE_SMALL;
-                break;
-            case R.id.surfaceSizeMedium_radio:
-                newSize = SURFACE_SIZE_MEDIUM;
-                break;
-            case R.id.surfaceSizeFull_radio:
-                newSize = SURFACE_SIZE_FULL;
-                break;
-            default:
-                throw new RuntimeException("Click from unknown id " + rb.getId());
+        int id = rb.getId();
+        if (id == R.id.surfaceSizeTiny_radio) {
+            newSize = SURFACE_SIZE_TINY;
+        } else if (id == R.id.surfaceSizeSmall_radio) {
+            newSize = SURFACE_SIZE_SMALL;
+        } else if (id == R.id.surfaceSizeMedium_radio) {
+            newSize = SURFACE_SIZE_MEDIUM;
+        } else if (id == R.id.surfaceSizeFull_radio) {
+            newSize = SURFACE_SIZE_FULL;
+        } else {
+            throw new RuntimeException("Click from unknown id " + rb.getId());
         }
         mSelectedSize = newSize;
 

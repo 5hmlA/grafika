@@ -23,8 +23,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
+
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
@@ -43,6 +44,7 @@ import android.widget.Toast;
 
 import com.android.grafika.gles.FullFrameRect;
 import com.android.grafika.gles.Texture2dProgram;
+import com.google.grafika.R;
 
 import java.io.File;
 import java.io.IOException;

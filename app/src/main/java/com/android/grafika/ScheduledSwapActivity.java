@@ -40,6 +40,7 @@ import com.android.grafika.gles.GlUtil;
 import com.android.grafika.gles.WindowSurface;
 
 import java.lang.ref.WeakReference;
+import com.google.grafika.R;
 
 /**
  * Exercises a SurfaceFlinger feature that defers acquisition of a buffer until a

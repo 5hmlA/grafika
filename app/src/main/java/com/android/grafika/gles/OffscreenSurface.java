@@ -20,10 +20,15 @@ package com.android.grafika.gles;
  * Off-screen EGL surface (pbuffer).
  * <p>
  * It's good practice to explicitly release() the surface, preferably from a "finally" block.
+ * 
+ * 🖼️ 离屏EGL Surface（像素缓冲区）
+ * 💡 建议在finally块中显式调用release()
  */
 public class OffscreenSurface extends EglSurfaceBase {
     /**
      * Creates an off-screen surface with the specified width and height.
+     * 
+     * 🔧 创建指定尺寸的离屏Surface
      */
     public OffscreenSurface(EglCore eglCore, int width, int height) {
         super(eglCore);
@@ -32,6 +37,8 @@ public class OffscreenSurface extends EglSurfaceBase {
 
     /**
      * Releases any resources associated with the surface.
+     * 
+     * 🗑️ 释放Surface相关资源
      */
     public void release() {
         releaseEglSurface();

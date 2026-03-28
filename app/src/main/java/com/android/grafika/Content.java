@@ -19,6 +19,9 @@ package com.android.grafika;
 /**
  * Content, managed by ContentManager.
  * TODO: re-evaluate whether this is useful
+ * 
+ * 📦 内容接口，由ContentManager管理
+ * 💡 目前为空接口，待评估是否有用
  */
 public interface Content {
 //    File getFile();

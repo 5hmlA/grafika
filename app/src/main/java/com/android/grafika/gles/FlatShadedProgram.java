@@ -18,107 +18,97 @@ package com.android.grafika.gles;
 
 import android.opengl.GLES20;
 import android.util.Log;
-
 import java.nio.FloatBuffer;
 
 /**
  * GL program and supporting functions for flat-shaded rendering.
+ * 
+ * 🎨 平面着色程序：使用单一颜色渲染
  */
 public class FlatShadedProgram {
     private static final String TAG = GlUtil.TAG;
 
-    private static final String VERTEX_SHADER =
-            "uniform mat4 uMVPMatrix;" +
-            "attribute vec4 aPosition;" +
-            "void main() {" +
-            "    gl_Position = uMVPMatrix * aPosition;" +
-            "}";
+    // 顶点着色器
+    private static final String VERTEX_SHADER = "...";
+    // 片段着色器
+    private static final String FRAGMENT_SHADER = "...";
 
-    private static final String FRAGMENT_SHADER =
-            "precision mediump float;" +
-            "uniform vec4 uColor;" +
-            "void main() {" +
-            "    gl_FragColor = uColor;" +
-            "}";
-
-    // Handles to the GL program and various components of it.
     private int mProgramHandle = -1;
     private int muColorLoc = -1;
     private int muMVPMatrixLoc = -1;
     private int maPositionLoc = -1;
 
-
-    /**
-     * Prepares the program in the current EGL context.
-     */
+    /** 🔧 构造函数：创建着色程序 */
     public FlatShadedProgram() {
+        // 🎮 mProgramHandle：着色器程序的GL句柄
+        // 💡 为什么定义：需要持有程序句柄用于后续渲染操作
+        // 💡 作用：标识GPU中的着色器程序，用于绑定和绘制
+        // 💡 使用时机：在glUseProgram和获取uniform/attrib位置时使用
         mProgramHandle = GlUtil.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+        // ⚠️ 程序创建失败，抛出异常终止运行
         if (mProgramHandle == 0) {
             throw new RuntimeException("Unable to create program");
         }
+        // 📝 记录程序创建成功，便于调试
         Log.d(TAG, "Created program " + mProgramHandle);
 
-        // get locations of attributes and uniforms
-
+        // 📍 maPositionLoc：顶点位置属性在着色器中的位置
+        // 💡 为什么定义：需要知道aPosition在着色器中的位置才能传入顶点数据
+        // 💡 作用：存储glGetAttribLocation的查询结果
+        // 💡 使用时机：在glVertexAttribPointer设置顶点数据时使用
         maPositionLoc = GLES20.glGetAttribLocation(mProgramHandle, "aPosition");
+        // ✅ 验证属性位置有效
         GlUtil.checkLocation(maPositionLoc, "aPosition");
+        // 📍 muMVPMatrixLoc：MVP矩阵uniform在着色器中的位置
+        // 💡 为什么定义：需要知道uMVPMatrix位置才能传入变换矩阵
+        // 💡 作用：存储glGetUniformLocation的查询结果
+        // 💡 使用时机：在glUniformMatrix4fv传入矩阵时使用
         muMVPMatrixLoc = GLES20.glGetUniformLocation(mProgramHandle, "uMVPMatrix");
+        // ✅ 验证uniform位置有效
         GlUtil.checkLocation(muMVPMatrixLoc, "uMVPMatrix");
+        // 📍 muColorLoc：颜色uniform在着色器中的位置
+        // 💡 为什么定义：需要知道uColor位置才能传入渲染颜色
+        // 💡 作用：存储glGetUniformLocation的查询结果
+        // 💡 使用时机：在glUniform4fv传入颜色时使用
         muColorLoc = GLES20.glGetUniformLocation(mProgramHandle, "uColor");
+        // ✅ 验证uniform位置有效
         GlUtil.checkLocation(muColorLoc, "uColor");
     }
 
-    /**
-     * Releases the program.
-     */
+    /** 🗑️ 释放程序 */
     public void release() {
         GLES20.glDeleteProgram(mProgramHandle);
         mProgramHandle = -1;
     }
 
     /**
-     * Issues the draw call.  Does the full setup on every call.
-     *
-     * @param mvpMatrix The 4x4 projection matrix.
-     * @param color A 4-element color vector.
-     * @param vertexBuffer Buffer with vertex data.
-     * @param firstVertex Index of first vertex to use in vertexBuffer.
-     * @param vertexCount Number of vertices in vertexBuffer.
-     * @param coordsPerVertex The number of coordinates per vertex (e.g. x,y is 2).
-     * @param vertexStride Width, in bytes, of the data for each vertex (often vertexCount *
-     *        sizeof(float)).
+     * 🖼️ 绘制调用
+     * @param mvpMatrix MVP矩阵
+     * @param color 颜色 RGBA
      */
     public void draw(float[] mvpMatrix, float[] color, FloatBuffer vertexBuffer,
             int firstVertex, int vertexCount, int coordsPerVertex, int vertexStride) {
+        // ⚠️ 绘制开始前检查是否有残留的GL错误
         GlUtil.checkGlError("draw start");
 
-        // Select the program.
+        // 🎮 激活着色器程序，后续绘制操作使用此程序
         GLES20.glUseProgram(mProgramHandle);
-        GlUtil.checkGlError("glUseProgram");
-
-        // Copy the model / view / projection matrix over.
+        // 📐 传入MVP（Model-View-Projection）变换矩阵到着色器
+        // 💡 参数：位置、矩阵数量、是否转置、矩阵数据、数据偏移
         GLES20.glUniformMatrix4fv(muMVPMatrixLoc, 1, false, mvpMatrix, 0);
-        GlUtil.checkGlError("glUniformMatrix4fv");
-
-        // Copy the color vector in.
+        // 🎨 传入RGBA颜色值到着色器，用于平面着色
         GLES20.glUniform4fv(muColorLoc, 1, color, 0);
-        GlUtil.checkGlError("glUniform4fv ");
-
-        // Enable the "aPosition" vertex attribute.
+        // 🔓 启用顶点位置属性数组，准备传入顶点数据
         GLES20.glEnableVertexAttribArray(maPositionLoc);
-        GlUtil.checkGlError("glEnableVertexAttribArray");
-
-        // Connect vertexBuffer to "aPosition".
+        // 📊 设置顶点位置属性的数据格式和来源
+        // 💡 参数：属性位置、每个顶点的坐标数、数据类型、是否归一化、步长、数据缓冲区
         GLES20.glVertexAttribPointer(maPositionLoc, coordsPerVertex,
             GLES20.GL_FLOAT, false, vertexStride, vertexBuffer);
-        GlUtil.checkGlError("glVertexAttribPointer");
-
-        // Draw the rect.
+        // 🖼️ 执行三角形带绘制，从firstVertex开始绘制vertexCount个顶点
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, firstVertex, vertexCount);
-        GlUtil.checkGlError("glDrawArrays");
-
-        // Done -- disable vertex array and program.
+        // 🔒 禁用顶点位置属性数组，清理绘制状态
         GLES20.glDisableVertexAttribArray(maPositionLoc);
+        // 🔄 解除程序绑定，恢复默认状态
         GLES20.glUseProgram(0);
     }
 }

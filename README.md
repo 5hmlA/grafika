@@ -86,7 +86,7 @@ Grafika 第一次启动时，会生成两个视频（gen-eight-rects，gen-slide
 - 使用录制按钮切换录制的开始和停止。
 - 录制持续到停止。如果您退出并返回，录制将重新开始，并带有一个实时时间间隙。如果您在录制时尝试播放视频，您将看到一个不完整的文件（并可能导致播放视频的 Activity 崩溃）。
 - 录制的视频被缩放到 640x480，因此看起来可能会被挤压。真正的应用要么将录制大小设置为等于摄像头输入大小，要么在将帧渲染到编码器时通过黑边处理来纠正长宽比。
-- 您可以选择要应用于预览的滤镜。它不会应用于录制。用于滤镜的着色器未经过优化，但在大多数设备上似乎性能良好（原版 Nexus 7 (2012) 是一个显著的例外）。
+- 您可以选择要应用于预览的滤镜；录制会使用同一套滤镜（`CameraPreviewFilter` + `TextureMovieEncoder#setCameraFilterMode`）。用于滤镜的着色器未经过优化，但在大多数设备上似乎性能良好（原版 Nexus 7 (2012) 是一个显著的例外）。
 - 输出为仅视频的 MP4 文件（"camera-test.mp4"）。
 
 [TextureView 中的简单 Canvas](app/src/main/java/com/android/grafika/TextureViewCanvasActivity.java)。练习使用 `Canvas` 在 `TextureView` 中进行软件渲染。

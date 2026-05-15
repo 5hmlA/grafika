@@ -28,10 +28,33 @@ import java.nio.FloatBuffer;
 public class FlatShadedProgram {
     private static final String TAG = GlUtil.TAG;
 
-    // 顶点着色器
-    private static final String VERTEX_SHADER = "...";
-    // 片段着色器
-    private static final String FRAGMENT_SHADER = "...";
+    /**
+     * 🎯 顶点着色器 GLSL 源码
+     * 💡 接收每个顶点的位置，通过 MVP 矩阵变换到裁剪空间
+     *    uMVPMatrix：Model-View-Projection 矩阵（投影×视图×模型的组合）
+     *    aPosition：每个顶点的原始坐标（来自 FloatBuffer 顶点数据）
+     *    gl_Position：输出变量，写入变换后的裁剪坐标，交给光栅化阶段
+     */
+    private static final String VERTEX_SHADER =
+            "uniform mat4 uMVPMatrix;\n" +
+            "attribute vec4 aPosition;\n" +
+            "void main() {\n" +
+            "    gl_Position = uMVPMatrix * aPosition;\n" +
+            "}\n";
+
+    /**
+     * 🎨 片段着色器 GLSL 源码
+     * 💡 对每个光栅化后的片段（像素）输出统一颜色
+     *    precision mediump float：使用中精度浮点数，平衡精度和性能
+     *    uColor：RGBA 颜色统一变量，由 Java 层通过 glUniform4fv 传入
+     *    gl_FragColor：输出变量，写入该片段最终颜色，送入帧缓冲
+     */
+    private static final String FRAGMENT_SHADER =
+            "precision mediump float;\n" +
+            "uniform vec4 uColor;\n" +
+            "void main() {\n" +
+            "    gl_FragColor = uColor;\n" +
+            "}\n";
 
     private int mProgramHandle = -1;
     private int muColorLoc = -1;

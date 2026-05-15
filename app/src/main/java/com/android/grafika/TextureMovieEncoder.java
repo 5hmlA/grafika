@@ -78,6 +78,8 @@ public class TextureMovieEncoder implements Runnable {
     private static final int MSG_SET_TEXTURE_ID = 3;        // 🎨 设置纹理 ID
     private static final int MSG_UPDATE_SHARED_CONTEXT = 4; // 🔄 更新共享上下文
     private static final int MSG_QUIT = 5;                  // 🚪 退出
+    private static final int MSG_UPDATE_CAMERA_FILTER = 6;  // 🎛️ 与预览一致的相机滤镜
+    private static final int MSG_SET_CAMERA_TEXTURE_SIZE = 7; // 📐 相机外部纹理尺寸（卷积滤镜需要）
 
     // ----- accessed exclusively by encoder thread -----
     // 🔒 仅编码器线程访问的变量
@@ -87,6 +89,16 @@ public class TextureMovieEncoder implements Runnable {
     private int mTextureId;                     // 🎨 纹理 ID
     private int mFrameNum;                      // 📊 帧计数器
     private VideoEncoderCore mVideoEncoder;     // 🎬 视频编码器核心
+
+    /** 🎛️ 编码器线程：与 CameraCaptureActivity 下拉框一致的滤镜模式 */
+    private int mEncoderFilterMode = CameraCaptureActivity.FILTER_NONE;
+    /** 📐 相机预览纹理尺寸（与渲染线程 setCameraPreviewSize 同步） */
+    private int mEncoderTexWidth = -1;
+    private int mEncoderTexHeight = -1;
+    /** 避免每帧重复编译 / setTexSize：仅状态变化时重配 */
+    private int mEncoderAppliedFilter = Integer.MIN_VALUE;
+    private int mEncoderAppliedTexW = -1;
+    private int mEncoderAppliedTexH = -1;
 
     // ----- accessed by multiple threads -----
     // 🔀 多线程访问的变量
@@ -261,6 +273,31 @@ public class TextureMovieEncoder implements Runnable {
      */
     public void updateSharedContext(EGLContext sharedContext) {
         mHandler.sendMessage(mHandler.obtainMessage(MSG_UPDATE_SHARED_CONTEXT, sharedContext));
+    }
+
+    /**
+     * 🎛️ 设置录制时使用的相机预览滤镜（与 {@link CameraCaptureActivity} 中常量一致）。
+     * 从任意线程调用；实际在编码器线程应用 {@link CameraPreviewFilter}。
+     */
+    public void setCameraFilterMode(int filterMode) {
+        synchronized (mReadyFence) {
+            if (!mReady || mHandler == null) {
+                return;
+            }
+        }
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_UPDATE_CAMERA_FILTER, filterMode, 0));
+    }
+
+    /**
+     * 📐 同步相机外部纹理的宽高（卷积类滤镜必须在着色器里知道纹理尺寸）。
+     */
+    public void setCameraTextureSize(int width, int height) {
+        synchronized (mReadyFence) {
+            if (!mReady || mHandler == null) {
+                return;
+            }
+        }
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_SET_CAMERA_TEXTURE_SIZE, width, height));
     }
 
     /**
@@ -482,6 +519,12 @@ public class TextureMovieEncoder implements Runnable {
                     // 🔄 obj 强转为新的 EGL 上下文，传入更新方法
                     encoder.handleUpdateSharedContext((EGLContext) inputMessage.obj);
                     break;
+                case MSG_UPDATE_CAMERA_FILTER:
+                    encoder.handleUpdateCameraFilter(inputMessage.arg1);
+                    break;
+                case MSG_SET_CAMERA_TEXTURE_SIZE:
+                    encoder.handleSetCameraTextureSize(inputMessage.arg1, inputMessage.arg2);
+                    break;
                 case MSG_QUIT:               // 🚪 退出
                     // 🚪 退出当前线程的 Looper 消息循环，结束编码器线程
                     Looper.myLooper().quit();
@@ -491,6 +534,35 @@ public class TextureMovieEncoder implements Runnable {
                     throw new RuntimeException("Unhandled msg what=" + what);
             }
         }
+    }
+
+    private void handleUpdateCameraFilter(int filterMode) {
+        mEncoderFilterMode = filterMode;
+        syncEncoderProgramIfNeeded();
+    }
+
+    private void handleSetCameraTextureSize(int width, int height) {
+        mEncoderTexWidth = width;
+        mEncoderTexHeight = height;
+        syncEncoderProgramIfNeeded();
+    }
+
+    /**
+     * 在编码器 EGL 上下文里复用与预览相同的 {@link CameraPreviewFilter} 配置。
+     */
+    private void syncEncoderProgramIfNeeded() {
+        if (mFullScreen == null) {
+            return;
+        }
+        if (mEncoderAppliedFilter == mEncoderFilterMode
+                && mEncoderAppliedTexW == mEncoderTexWidth
+                && mEncoderAppliedTexH == mEncoderTexHeight) {
+            return;
+        }
+        CameraPreviewFilter.apply(mEncoderFilterMode, mFullScreen, mEncoderTexWidth, mEncoderTexHeight);
+        mEncoderAppliedFilter = mEncoderFilterMode;
+        mEncoderAppliedTexW = mEncoderTexWidth;
+        mEncoderAppliedTexH = mEncoderTexHeight;
     }
 
     /**
@@ -524,6 +596,7 @@ public class TextureMovieEncoder implements Runnable {
      */
     private void handleFrameAvailable(float[] transform, long timestampNanos) {
         if (VERBOSE) Log.d(TAG, "handleFrameAvailable tr=" + transform);
+        syncEncoderProgramIfNeeded();
         mVideoEncoder.drainEncoder(false);               // 📤 先排空编码器
         // 🎨 mFullScreen.drawFrame(mTextureId, transform)：将纹理绘制到编码器输入表面
         // 💡 为什么调用：需要将外部纹理（如相机预览）渲染到编码器Surface
@@ -624,6 +697,9 @@ public class TextureMovieEncoder implements Runnable {
         // 🎨 为新上下文创建全屏矩形绘制程序
         mFullScreen = new FullFrameRect(
                 new Texture2dProgram(Texture2dProgram.ProgramType.TEXTURE_EXT));
+        mEncoderAppliedFilter = Integer.MIN_VALUE;
+        mEncoderAppliedTexW = mEncoderAppliedTexH = -1;
+        syncEncoderProgramIfNeeded();
     }
 
     /**
@@ -662,6 +738,9 @@ public class TextureMovieEncoder implements Runnable {
         // 💡 使用时机：WindowSurface激活之后
         mFullScreen = new FullFrameRect(
                 new Texture2dProgram(Texture2dProgram.ProgramType.TEXTURE_EXT));
+        mEncoderAppliedFilter = Integer.MIN_VALUE;
+        mEncoderAppliedTexW = mEncoderAppliedTexH = -1;
+        syncEncoderProgramIfNeeded();
     }
 
     /**

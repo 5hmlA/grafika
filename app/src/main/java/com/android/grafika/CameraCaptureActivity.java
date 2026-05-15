@@ -449,6 +449,8 @@ public class CameraCaptureActivity extends Activity
                 mRenderer.changeFilterMode(filterNum);
             }
         });
+        // 🎬 同步到编码器线程：录制画面与预览使用同一套滤镜（需在 GL 更新纹理后由编码器再画一遍）
+        sVideoEncoder.setCameraFilterMode(filterNum);
     }
 
     // 🚫 未选择任何滤镜时不处理
@@ -1172,6 +1174,8 @@ class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
         // 💡 作用：触发onDrawFrame中更新纹理尺寸
         // ⏰ 使用时机：在设置尺寸后立即标记
         mIncomingSizeUpdated = true;
+        // 📐 卷积类滤镜的着色器需要纹理真实尺寸；编码器线程也要同步，否则录制与预览不一致
+        mVideoEncoder.setCameraTextureSize(width, height);
     }
 
     // 🎨 Surface创建时初始化OpenGL资源
@@ -1199,13 +1203,12 @@ class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
             mRecordingStatus = RECORDING_OFF;
         }
 
-        // Set up the texture blitter that will be used for on-screen display.  This
-        // is *not* applied to the recording, because that uses a separate shader.
+        // Set up the texture blitter that will be used for on-screen display.
         // 🖼️ mFullScreen：全屏矩形渲染器
         // 🔍 为什么创建：需要渲染摄像头帧到屏幕
         // 💡 作用：管理纹理绘制的OpenGL资源
         // ⏰ 使用时机：在Surface创建时初始化
-        // 🖼️ 创建全屏矩形渲染器（用于屏幕显示，录制使用单独的着色器）
+        // 🖼️ 创建全屏矩形渲染器（录制端在 TextureMovieEncoder 内用同一套 CameraPreviewFilter 配置）
         mFullScreen = new FullFrameRect(
                 new Texture2dProgram(Texture2dProgram.ProgramType.TEXTURE_EXT));
 
@@ -1291,6 +1294,11 @@ class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
                     // ⏰ 使用时机：录制状态从OFF变为ON时
                     mVideoEncoder.startRecording(new TextureMovieEncoder.EncoderConfig(
                             mOutputFile, 640, 480, 1000000, EGL14.eglGetCurrentContext()));
+                    // 🎛️ 编码器线程可能晚于下拉框就绪：开始录制时再推一次滤镜与纹理尺寸
+                    mVideoEncoder.setCameraFilterMode(mNewFilter);
+                    if (mIncomingWidth > 0 && mIncomingHeight > 0) {
+                        mVideoEncoder.setCameraTextureSize(mIncomingWidth, mIncomingHeight);
+                    }
                     // 📊 RECORDING_ON：录制进行中状态
                     mRecordingStatus = RECORDING_ON;
                     break;
@@ -1302,6 +1310,10 @@ class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
                     // 💡 作用：确保编码器与渲染器共享正确的EGL上下文
                     // ⏰ 使用时机：录制状态为RESUMED时
                     mVideoEncoder.updateSharedContext(EGL14.eglGetCurrentContext());
+                    mVideoEncoder.setCameraFilterMode(mNewFilter);
+                    if (mIncomingWidth > 0 && mIncomingHeight > 0) {
+                        mVideoEncoder.setCameraTextureSize(mIncomingWidth, mIncomingHeight);
+                    }
                     mRecordingStatus = RECORDING_ON;
                     break;
                 case RECORDING_ON:
@@ -1369,15 +1381,14 @@ class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
             Log.i(TAG, "Drawing before incoming texture size set; skipping");
             return;
         }
-        
+
         // 🎛️ mCurrentFilter/mNewFilter：当前滤镜和新滤镜
         // 🔍 为什么判断：需要检测用户是否切换了滤镜
         // 💡 作用：只在滤镜变化时更新，避免重复操作
         // ⏰ 使用时机：每帧绘制时判断
         // 🎨 更新滤镜（如果需要）
-        if (mCurrentFilter != mNewFilter) {
-            // 🔄 updateFilter：更新滤镜着色器程序
-            // 💡 作用：编译新的着色器或更新卷积核参数
+        // 🎛️ 滤镜或预览尺寸变化时更新预览侧着色器（CameraPreviewFilter 内会按需 setTexSize）
+        if (mCurrentFilter != mNewFilter || mIncomingSizeUpdated) {
             updateFilter();
         }
         

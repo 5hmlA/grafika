@@ -1027,51 +1027,67 @@ public class RecordFBOActivity extends Activity implements SurfaceHolder.Callbac
 
         /**
          * Prepares the off-screen framebuffer.
-         * 
-         * 🖼️ 准备离屏帧缓冲
-         * 创建纹理、帧缓冲和深度缓冲，并将它们关联起来
-         * 
-         * @param width 帧缓冲宽度
-         * @param height 帧缓冲高度
+         *
+         * 🖼️ 准备离屏帧缓冲对象（FBO 核心初始化！）
+         * <p>
+         * 💡 FBO（Framebuffer Object）原理：
+         *    - 默认帧缓冲（id=0）= 直接渲染到屏幕
+         *    - 自定义 FBO = 渲染到内存中的纹理/渲染缓冲，不显示到屏幕
+         *    - 本方法创建一个 FBO，将 mOffscreenTexture 作为颜色附件
+         *      这样 OpenGL 绘制命令会把结果写到纹理，而不是屏幕
+         *    - 之后可以把这个纹理分别"贴"到显示 Surface 和编码器 Surface，
+         *      实现"一次绘制，两处输出"
+         * <p>
+         * 📐 FBO 由三部分组成：
+         *    颜色附件（mOffscreenTexture）→ 存储每个像素的 RGBA 颜色
+         *    深度附件（mDepthBuffer）     → 存储每个像素的深度值（虽然本例 2D 不用）
+         *    帧缓冲容器（mFramebuffer）   → 将上述两个附件组合成完整的渲染目标
+         *
+         * @param width  帧缓冲宽度（像素，与窗口 Surface 尺寸一致）
+         * @param height 帧缓冲高度（像素，与窗口 Surface 尺寸一致）
          */
         private void prepareFramebuffer(int width, int height) {
-            // 🔍 GlUtil.checkGlError：检查GL错误
-            // 💡 作用：标记准备帧缓冲开始，检测之前是否有错误
+            // 🔍 GlUtil.checkGlError：检查 GL 错误
+            // 💡 在整个 FBO 创建过程开始前检测之前遗留的错误，便于定位问题
             GlUtil.checkGlError("prepareFramebuffer start");
 
-            // 📦 values：临时数组，用于存储OpenGL生成的对象ID
-            // 🔍 为什么定义：glGenTextures/glGenFramebuffers/glGenRenderbuffers通过数组返回生成的ID
-            // 💡 作用：接收OpenGL对象创建函数的输出结果
-            // ⏰ 使用时机：每次调用glGen*函数时填充，然后取出ID保存到成员变量
-            // 💡 哪里用：
-            //    - glGenTextures()：返回纹理ID → mOffscreenTexture
-            //    - glGenFramebuffers()：返回帧缓冲ID → mFramebuffer
-            //    - glGenRenderbuffers()：返回渲染缓冲ID → mDepthBuffer
+            // 📦 values：临时数组，用于存储 OpenGL 生成的对象 ID（int[1]）
+            // 💡 为什么定义：glGen* 系列函数通过数组输出参数返回生成的 ID，Java 侧需要数组接收
+            // 💡 作用：复用同一个数组依次接收 纹理ID / 帧缓冲ID / 渲染缓冲ID
+            // 💡 何时用：每次 glGen* 调用后，取出 values[0] 保存到对应成员变量
             int[] values = new int[1];
 
+            // ── 第一步：创建颜色纹理（Color Attachment）────────────────────────────
             // Create a texture object and bind it.  This will be the color buffer.
-            // 🎨 创建纹理对象作为颜色缓冲
-            // 📝 glGenTextures：生成1个纹理对象ID
+            // 🎨 创建纹理对象，用作 FBO 的颜色缓冲
+            // 💡 为什么用纹理而非 Renderbuffer 作颜色附件？
+            //    ➜ 纹理可以在之后被当作普通纹理采样（通过 mFullScreen.drawFrame()），
+            //      Renderbuffer 不能被采样，只能用 glBlitFramebuffer 复制。
             GLES20.glGenTextures(1, values, 0);
             GlUtil.checkGlError("glGenTextures");
-            // 📊 mOffscreenTexture：离屏纹理对象ID
-            // 🔍 为什么赋值：需要保存纹理ID，后续绑定和绘制使用
-            // 💡 作用：作为FBO的颜色附件，存储离屏渲染结果
+            // 📊 mOffscreenTexture：离屏纹理 ID（FBO 颜色附件）
+            // 💡 作用：保存纹理 ID，稍后通过 glFramebufferTexture2D 附加到 FBO；
+            //         FBO 渲染结束后，用 mFullScreen.drawFrame(mOffscreenTexture) 显示/录制
             mOffscreenTexture = values[0];   // expected > 0
-            // 📝 glBindTexture：绑定纹理对象，后续纹理操作作用于此纹理
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mOffscreenTexture);
             GlUtil.checkGlError("glBindTexture " + mOffscreenTexture);
 
             // Create texture storage.
-            // 📦 创建纹理存储空间
-            // 📝 glTexImage2D：分配width x height的RGBA纹理存储空间
-            // 💡 参数null：不上传初始数据，只分配内存
+            // 📦 为纹理分配 GPU 内存（不上传初始像素，仅分配空间）
+            // 💡 glTexImage2D 参数：目标=GL_TEXTURE_2D, mipmap级别=0,
+            //    内部格式=RGBA, 宽高=窗口尺寸, 边框=0, 源格式=RGBA,
+            //    源数据类型=GL_UNSIGNED_BYTE, 初始数据=null（仅分配不填充）
+            // 💡 每个像素 4 字节（RGBA）→ 总内存 = width × height × 4 字节
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
                     GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
 
             // Set parameters.  We're probably using non-power-of-two dimensions, so
             // some values may not be available for use.
-            // ⚙️ 设置纹理参数（可能使用非2的幂次尺寸）
+            // ⚙️ 设置纹理采样参数（屏幕尺寸通常不是 2 的幂次方，必须设置 CLAMP_TO_EDGE）
+            // 💡 GL_TEXTURE_MIN_FILTER = GL_NEAREST：缩小时最近邻采样，性能好，FBO 读取不需要高质量
+            // 💡 GL_TEXTURE_MAG_FILTER = GL_LINEAR：放大时线性插值，绘制到屏幕时避免锯齿
+            // 💡 CLAMP_TO_EDGE：纹理坐标超出 [0,1] 时夹紧到边缘，
+            //    非 2 的幂次方纹理不支持 GL_REPEAT，必须用此模式
             GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER,
                     GLES20.GL_NEAREST);
             GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER,
@@ -1082,66 +1098,70 @@ public class RecordFBOActivity extends Activity implements SurfaceHolder.Callbac
                     GLES20.GL_CLAMP_TO_EDGE);
             GlUtil.checkGlError("glTexParameter");
 
+            // ── 第二步：创建帧缓冲对象（FBO 容器）──────────────────────────────────
             // Create framebuffer object and bind it.
-            // 🖼️ 创建并绑定帧缓冲对象
-            // 📝 glGenFramebuffers：生成1个帧缓冲对象ID
+            // 🖼️ 创建 FBO 并绑定，后续附件操作都作用在此 FBO 上
             GLES20.glGenFramebuffers(1, values, 0);
             GlUtil.checkGlError("glGenFramebuffers");
-            // 📊 mFramebuffer：帧缓冲对象ID
-            // 🔍 为什么赋值：需要保存FBO ID，后续绑定和渲染使用
-            // 💡 作用：将渲染重定向到离屏纹理而非屏幕
+            // 📊 mFramebuffer：帧缓冲对象 ID（渲染目标容器）
+            // 💡 作用：绑定后，所有 draw 调用的结果写入 FBO 的附件（纹理），而非屏幕
+            // 💡 doFrame() 中：glBindFramebuffer(mFramebuffer) → draw() → glBindFramebuffer(0)
             mFramebuffer = values[0];    // expected > 0
-            // 📝 glBindFramebuffer：绑定帧缓冲，后续渲染操作输出到此FBO
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFramebuffer);
             GlUtil.checkGlError("glBindFramebuffer " + mFramebuffer);
 
+            // ── 第三步：创建深度渲染缓冲（Depth Attachment）────────────────────────
             // Create a depth buffer and bind it.
-            // 📦 创建并绑定深度缓冲
-            // 📝 glGenRenderbuffers：生成1个渲染缓冲对象ID
+            // 📦 创建深度渲染缓冲（Renderbuffer 不能被纹理采样，仅作深度存储）
+            // 💡 为什么需要深度缓冲：FBO 需要完整性检查（GL_FRAMEBUFFER_COMPLETE），
+            //    深度附件是可选的，但本例创建了它以确保 FBO 完整；实际 2D 场景不做深度测试
             GLES20.glGenRenderbuffers(1, values, 0);
             GlUtil.checkGlError("glGenRenderbuffers");
-            // 📊 mDepthBuffer：深度缓冲对象ID
-            // 🔍 为什么赋值：需要保存渲染缓冲ID，后续附加到FBO
-            // 💡 作用：存储深度信息，用于深度测试（本例中仅2D所以未实际使用）
+            // 📊 mDepthBuffer：深度渲染缓冲 ID
             mDepthBuffer = values[0];    // expected > 0
-            // 📝 glBindRenderbuffer：绑定渲染缓冲对象
             GLES20.glBindRenderbuffer(GLES20.GL_RENDERBUFFER, mDepthBuffer);
             GlUtil.checkGlError("glBindrenderbuffer " + mDepthBuffer);
 
             // Allocate storage for the depth buffer.
-            // 💾 为深度缓冲分配存储空间
+            // 💾 为深度缓冲分配存储空间（GL_DEPTH_COMPONENT16：每像素 16 位深度值）
+            // 💡 不需要颜色信息，只需深度值，16 位足够 2D 场景
             GLES20.glRenderbufferStorage(GLES20.GL_RENDERBUFFER, GLES20.GL_DEPTH_COMPONENT16,
                     width, height);
             GlUtil.checkGlError("glRenderbufferStorage");
 
+            // ── 第四步：将附件挂载到 FBO ──────────────────────────────────────────
             // Attach the depth buffer and the texture (color buffer) to the framebuffer object.
-            // 🔗 将深度缓冲和纹理附加到帧缓冲对象
-            // 📝 glFramebufferRenderbuffer：将深度缓冲附加到FBO的深度附件点
+            // 🔗 将深度渲染缓冲附加到 FBO 的深度附件点
+            // 💡 之后渲染时深度值写入 mDepthBuffer（本例 2D 无意义，但 FBO 完整性需要）
             GLES20.glFramebufferRenderbuffer(GLES20.GL_FRAMEBUFFER, GLES20.GL_DEPTH_ATTACHMENT,
                     GLES20.GL_RENDERBUFFER, mDepthBuffer);
             GlUtil.checkGlError("glFramebufferRenderbuffer");
-            // 📝 glFramebufferTexture2D：将纹理附加到FBO的颜色附件点
-            // 💡 GL_COLOR_ATTACHMENT0：颜色附件0（FBO的主要颜色输出）
-            // 💡 mOffscreenTexture：离屏纹理对象ID
+            // 🎨 将颜色纹理附加到 FBO 的颜色附件 0（GL_COLOR_ATTACHMENT0）
+            // 💡 这是最关键一步：FBO 渲染的颜色结果将写入 mOffscreenTexture
+            //    之后用 mFullScreen.drawFrame(mOffscreenTexture) 即可把渲染结果贴到任意 Surface
+            // 💡 mipmap 级别 = 0（不使用 mipmap，直接用最高分辨率层）
             GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
                     GLES20.GL_TEXTURE_2D, mOffscreenTexture, 0);
             GlUtil.checkGlError("glFramebufferTexture2D");
 
+            // ── 第五步：验证 FBO 完整性 ────────────────────────────────────────────
             // See if GLES is happy with all this.
-            // ✅ 检查帧缓冲完整性
-            // 📝 glCheckFramebufferStatus：检查FBO配置是否完整有效
+            // ✅ glCheckFramebufferStatus：检查 FBO 是否完整有效
+            // 💡 GL_FRAMEBUFFER_COMPLETE：所有必需附件均已正确附加且格式兼容
+            // 💡 常见错误：GL_FRAMEBUFFER_UNSUPPORTED（格式不支持）、
+            //              GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT（附件格式错误）
             int status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
             if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
-                // ⚠️ FBO不完整，抛出异常（纹理或深度缓冲未正确附加）
+                // ⚠️ FBO 不完整，通常是纹理格式不支持或附件配置错误，抛出异常
                 throw new RuntimeException("Framebuffer not complete, status=" + status);
             }
 
+            // ── 第六步：恢复默认帧缓冲 ────────────────────────────────────────────
             // Switch back to the default framebuffer.
-            // 🔄 切换回默认帧缓冲
-            // 📝 glBindFramebuffer(0)：解绑FBO，后续渲染输出到屏幕
+            // 🔄 glBindFramebuffer(0)：解绑自定义 FBO，恢复到默认帧缓冲（屏幕输出）
+            // 💡 此后的 draw 调用又会输出到屏幕，直到 doFrame() 中再次绑定 mFramebuffer
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 
-            // 🔍 GlUtil.checkGlError：检查GL错误，标记准备帧缓冲完成
             GlUtil.checkGlError("prepareFramebuffer done");
         }
 

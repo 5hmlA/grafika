@@ -413,24 +413,4 @@ public class Sprite2d {
                 "} drawable=" + mDrawable + "]";               // 🖼️ 可绘制对象类型
     }
 
-    /**
-     * 📝 返回对象的字符串表示（重复方法，功能与上方toString相同）
-     * 💡 用于调试时查看精灵状态
-     * 📌 使用时机：Log.d()或调试器中查看对象信息
-     *
-     * @return 包含位置、缩放、角度、颜色和drawable信息的字符串
-     */
-    @Override
-    public String toString() {
-        // 📝 拼接精灵属性信息（功能与上方toString完全相同）
-        // 💡 mPosX, mPosY：精灵的位置坐标（float），用于调试定位
-        // 💡 mScaleX, mScaleY：缩放比例（float），用于调试缩放状态
-        // 💡 mAngle：旋转角度（float，度），用于调试旋转状态
-        // 💡 mColor[0..2]：RGB颜色分量（float），用于调试颜色显示
-        // 💡 mDrawable：可绘制对象类型（Drawable2d），用于调试渲染对象
-        return "[Sprite2d pos=" + mPosX + "," + mPosY +
-                " scale=" + mScaleX + "," + mScaleY + " angle=" + mAngle +
-                " color={" + mColor[0] + "," + mColor[1] + "," + mColor[2] +
-                "} drawable=" + mDrawable + "]";
-    }
 }
